@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1B33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex">
+<title>وضعیت سیستم‌ها</title>
+<style>
+@font-face { font-family: Vazirmatn; src: url("vazirmatn.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --bg: #F3F6FB; --card: #FFFFFF; --ink: #0F1B33; --muted: #5B6880; --line: #E3E8F1;
+  --ok: #1FA971; --warn: #B96A0C; --bad: #E0453F; --idle: #98A2B3; --accent: #0D6FCB;
+  --ok-bg: #E7F6EF; --warn-bg: #FBF0E1; --bad-bg: #FCE9E8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B1324; --card: #131D33; --ink: #EAF0FB; --muted: #94A3BD; --line: #22304D;
+    --ok: #34C98C; --warn: #F2A93B; --bad: #FF6B64; --idle: #5B6880; --accent: #3AA0FF;
+    --ok-bg: #12332A; --warn-bg: #3A2C14; --bad-bg: #3D1C1D;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font-family: Vazirmatn, Tahoma, system-ui, sans-serif; font-size: 15px; line-height: 1.6;
+  padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+.wrap { max-width: 560px; margin: 0 auto; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; font-weight: 800; }
+.sub { color: var(--muted); font-size: 12.5px; }
+button.refresh { font: inherit; font-weight: 700; font-size: 14px; border: 0; border-radius: 12px; padding: 9px 16px;
+  background: var(--accent); color: #fff; cursor: pointer; flex-shrink: 0; }
+button.refresh:disabled { opacity: .55; }
+
+.summary { border-radius: 16px; padding: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--line); }
+.summary .big { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  font-size: 22px; color: #fff; background: var(--idle); }
+.summary.ok   { background: var(--ok-bg);   border-color: transparent; } .summary.ok .big   { background: var(--ok); }
+.summary.warn { background: var(--warn-bg); border-color: transparent; } .summary.warn .big { background: var(--warn); }
+.summary.bad  { background: var(--bad-bg);  border-color: transparent; } .summary.bad .big  { background: var(--bad); }
+.summary b { display: block; font-size: 17px; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; margin-bottom: 14px; overflow: hidden; }
+.card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 16px 6px; }
+.card-h h2 { font-size: 15.5px; margin: 0; font-weight: 800; }
+.card-h a { font-size: 12.5px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.card-h + .row { border-top: 0; }
+.dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: var(--idle); }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.dot.wait { background: var(--idle); animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: .3; } }
+.row .name { font-weight: 600; }
+.row .detail { color: var(--muted); font-size: 12.5px; word-break: break-word; }
+.row .detail.bad { color: var(--bad); } .row .detail.warn { color: var(--warn); }
+.tunnel { font-size: 12px; color: var(--muted); padding: 0 16px 12px; direction: ltr; text-align: left; word-break: break-all; }
+footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>وضعیت سیستم‌ها</h1>
+      <div class="sub" id="checkedAt">در حال بررسی…</div>
+    </div>
+    <button class="refresh" id="refreshBtn" type="button">بررسی دوباره</button>
+  </header>
+
+  <div class="summary" id="summary">
+    <div class="big" id="sumIcon">…</div>
+    <div><b id="sumTitle">در حال بررسی…</b><span class="sub" id="sumText"></span></div>
+  </div>
+
+  <div id="cards"></div>
+
+  <footer>هر ۲ دقیقه خودکار تازه می‌شه (فقط وقتی صفحه بازه).</footer>
+</div>
+
+<script>
+/* ================== تنظیمات ================== */
+const PAGES = "https://azkicenter.github.io";
+const GH_API = "https://api.github.com/repos/azkicenter";
+const SUPABASE_URL = "https://paokcjakxxjqtulibegi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO";   // همون کلید عمومی هاب
+const TIMEOUT_MS = 12000;
+const AUTO_REFRESH_MS = 2 * 60 * 1000;
+
+// آستانه‌ها به دقیقه: [تا این‌قدر سبز، تا این‌قدر زرد، بعدش قرمز]
+const LIMITS = {
+  hourly: [80, 130],   // آپدیت ساعتی داشبورد و گزارش‌ها (معمولاً حدود دقیقه‌ی ۸ هر ساعت)
+  ops:    [25, 45],    // وضعیت پنل کارشناسان (هر ۱۵ دقیقه)
+};
+
+/* ================== ابزارها ================== */
+const $ = id => document.getElementById(id);
+const fa = s => String(s).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function ago(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "همین الان";
+  if (m < 60) return fa(m) + " دقیقه پیش";
+  const h = Math.floor(m / 60), r = m % 60;
+  if (h < 24) return fa(h) + " ساعت" + (r ? " و " + fa(r) + " دقیقه" : "") + " پیش";
+  return fa(Math.floor(h / 24)) + " روز پیش";
+}
+
+async function timedFetch(url, opts = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const t0 = performance.now();
+  try {
+    const r = await fetch(url, { cache: "no-store", ...opts, signal: ctrl.signal });
+    return { r, ms: Math.round(performance.now() - t0) };
+  } finally { clearTimeout(t); }
+}
+
+// تاریخ شمسی → میلادی (الگوریتم استاندارد jalaali)
+function j2g(jy, jm, jd) {
+  jy += 1595;
+  let days = -355668 + 365 * jy + Math.floor(jy / 33) * 8 + Math.floor(((jy % 33) + 3) / 4) + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
+  let gy = 400 * Math.floor(days / 146097); days %= 146097;
+  if (days > 36524) { gy += 100 * Math.floor(--days / 36524); days %= 36524; if (days >= 365) days++; }
+  gy += 4 * Math.floor(days / 1461); days %= 1461;
+  if (days > 365) { gy += Math.floor((days - 1) / 365); days = (days - 1) % 365; }
+  let gd = days + 1;
+  const ml = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let gm; for (gm = 0; gm < 13 && gd > ml[gm]; gm++) gd -= ml[gm];
+  return [gy, gm, gd];
+}
+// "1405/08/17" + "19:08" (ساعت تهران) → زمان میلادی به میلی‌ثانیه
+function tehranJalaliToMs(date, time) {
+  const d = String(date || "").replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+  const t = String(time || "").replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).match(/(\d{1,2}):(\d{2})/);
+  if (!d || !t) return null;
+  const [gy, gm, gd] = j2g(+d[1], +d[2], +d[3]);
+  return Date.UTC(gy, gm - 1, gd, +t[1], +t[2]) - 3.5 * 3600 * 1000;   // تهران = UTC+03:30
+}
+function freshness(ageMs, [okMin, warnMin]) {
+  const m = ageMs / 60000;
+  return m <= okMin ? "ok" : m <= warnMin ? "warn" : "bad";
+}
+
+/* ================== بررسی‌ها ================== */
+// بالا بودن صفحه‌ی گیت‌هاب
+async function checkPage(path) {
+  try {
+    const { r, ms } = await timedFetch(PAGES + path);
+    return r.ok ? { s: "ok", d: "در دسترس · " + fa(ms) + " میلی‌ثانیه" } : { s: "bad", d: "خطای " + fa(r.status) };
+  } catch (e) { return { s: "bad", d: "باز نشد" }; }
+}
+
+// آدرس فعلی تونل از config.js همون ریپو
+async function readTunnel(repo) {
+  try {
+    const { r } = await timedFetch(`${PAGES}/${repo}/config.js?t=${Date.now()}`);
+    const m = (await r.text()).match(/API_BASE\s*:\s*["']([^"']+)["']/);
+    return m ? m[1].replace(/\/+$/, "") : null;
+  } catch (e) { return null; }
+}
+// آخرین باری که آدرس تونل توی ریپو عوض شده (فقط برای اطلاع)
+async function tunnelChangedAt(repo) {
+  try {
+    const { r } = await timedFetch(`${GH_API}/${repo}/commits?path=config.js&per_page=1`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j[0] ? Date.parse(j[0].commit.committer.date) : null;
+  } catch (e) { return null; }
+}
+
+// پینگ یک سرویس پشت تونل:
+// هر جوابی از خود سرور (حتی ۴۰۱ «لاگین لازمه» یا ۴۰۵) یعنی زنده‌ست؛ ۵۰۲/۵۰۳/۵۰۴ یعنی گیت‌وی بالاست ولی سرویس نه.
+async function probe(url, opts) {
+  try {
+    const { r, ms } = await timedFetch(url, opts);
+    if ([502, 503, 504].includes(r.status)) return { s: "bad", d: "سرویس بالا نیست (" + fa(r.status) + ")" };
+    if (r.status === 404) return { s: "warn", d: "مسیر پیدا نشد (۴۰۴) — شاید تونل عوض شده" };
+    return { s: "ok", d: "جواب داد · " + fa(ms) + " میلی‌ثانیه" };
+  } catch (e) {
+    return { s: "bad", d: e.name === "AbortError" ? "جواب نداد (تایم‌اوت)" : "جواب نداد — سیستم یا cmd خاموشه؟" };
+  }
+}
+
+async function checkDashboard() {
+  const api = await readTunnel("dashboard");
+  const rows = [{ name: "صفحه‌ی داشبورد", ...(await checkPage("/dashboard/")) }];
+  if (!api) {
+    rows.push({ name: "سرور (cmd داشبورد)", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
+    return { rows, api };
+  }
+  const gw = await probe(api + "/auth/health");
+  rows.push({ name: "سرور + لاگین (cmd داشبورد)", ...gw });
+  if (gw.s === "bad") {
+    for (const n of ["تاریخچه‌خوان", "الحاقیه ایران", "آمار درخواست‌ها"]) rows.push({ name: n, s: "bad", d: "سرور اصلی بالا نیست" });
+  } else {
+    const [t, e, s] = await Promise.all([
+      probe(api + "/tarikhche/api/ping"),
+      probe(api + "/endorsement/api/endorsement/search"),
+      probe(api + "/stats/api/summary?days=1"),
+    ]);
+    rows.push({ name: "تاریخچه‌خوان", ...t }, { name: "الحاقیه ایران", ...e }, { name: "آمار درخواست‌ها", ...s });
+  }
+  return { rows, api };
+}
+
+async function checkSanhab() {
+  const api = await readTunnel("sanhab");
+  const rows = [{ name: "صفحه‌ی سنهاب", ...(await checkPage("/sanhab/")) }];
+  if (!api) rows.push({ name: "سرور (cmd سنهاب)", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
+  else rows.push({ name: "سرور (cmd سنهاب)", ...(await probe(api + "/api/me")) });
+  return { rows, api };
+}
+
+async function checkHub() {
+  const rows = [];
+  // صفحه + نسخه
+  try {
+    const { r, ms } = await timedFetch(`${PAGES}/hub/version.txt?t=${Date.now()}`);
+    rows.push(r.ok
+      ? { name: "صفحه‌ی هاب", s: "ok", d: "نسخه‌ی \u2066" + fa((await r.text()).trim()) + "\u2069 · " + fa(ms) + " میلی‌ثانیه" }
+      : { name: "صفحه‌ی هاب", s: "bad", d: "خطای " + fa(r.status) });
+  } catch (e) { rows.push({ name: "صفحه‌ی هاب", s: "bad", d: "باز نشد" }); }
+
+  // Supabase + تازگی دیتا (یک درخواست کوچیک)
+  let hb;
+  try {
+    const { r, ms } = await timedFetch(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", {
+      method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}",
+    });
+    if (r.status === 404) { rows.push({ name: "Supabase", s: "warn", d: "تابع status_heartbeat هنوز ساخته نشده" }); return { rows }; }
+    if (!r.ok) { rows.push({ name: "Supabase", s: "bad", d: "خطای " + fa(r.status) }); return { rows }; }
+    hb = await r.json();
+    rows.push({ name: "Supabase", s: "ok", d: "در دسترس · " + fa(ms) + " میلی‌ثانیه" });
+  } catch (e) {
+    rows.push({ name: "Supabase", s: "bad", d: "جواب نداد" });
+    for (const n of ["آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"]) rows.push({ name: n, s: "warn", d: "نامشخص — Supabase در دسترس نیست" });
+    return { rows };
+  }
+
+  const now = Date.parse(hb.now) || Date.now();     // ساعت سرور، نه ساعت گوشی
+  const fresh = (name, at, lim, label) => {
+    if (!at) return { name, s: "warn", d: "زمان آپدیت پیدا نشد" };
+    const age = now - at, s = freshness(age, lim);
+    return { name, s, d: "آخرین آپدیت " + ago(age) + (label ? " · " + label : "") + (s === "ok" ? "" : " — n8n یا سیستم رو چک کن") };
+  };
+  rows.push(fresh("آپدیت ساعتی (n8n)", tehranJalaliToMs(hb.app_date, hb.app_time), LIMITS.hourly, fa(hb.app_time || "")));
+  rows.push(fresh("آپدیت گزارش‌ها (n8n)", tehranJalaliToMs(hb.reports_date, hb.reports_time), LIMITS.hourly, fa(hb.reports_time || "")));
+  rows.push(fresh("وضعیت پنل کارشناسان (n8n)", hb.ops_updated_at ? Date.parse(hb.ops_updated_at) : null, LIMITS.ops));
+  return { rows };
+}
+
+/* ================== نمایش ================== */
+const GROUPS = [
+  { id: "dashboard", title: "داشبورد عملیات", link: PAGES + "/dashboard/", run: checkDashboard, repo: "dashboard",
+    pending: ["صفحه‌ی داشبورد", "سرور + لاگین (cmd داشبورد)", "تاریخچه‌خوان", "الحاقیه ایران", "آمار درخواست‌ها"] },
+  { id: "sanhab", title: "سنهاب", link: PAGES + "/sanhab/", run: checkSanhab, repo: "sanhab",
+    pending: ["صفحه‌ی سنهاب", "سرور (cmd سنهاب)"] },
+  { id: "hub", title: "هاب ازکی سنتر", link: PAGES + "/hub/", run: checkHub,
+    pending: ["صفحه‌ی هاب", "Supabase", "آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"] },
+];
+const tunnelInfo = {};   // repo → { api, changedAt }
+
+function renderCard(g, rows) {
+  const t = tunnelInfo[g.repo];
+  const tunnelLine = t && t.api
+    ? `<div class="tunnel">${esc(t.api.replace(/^https?:\/\//, ""))}${t.changedAt ? " · <span dir=\"rtl\">آدرس تونل " + ago(Date.now() - t.changedAt) + " عوض شده</span>" : ""}</div>` : "";
+  return `<section class="card" id="card-${g.id}">
+    <div class="card-h"><h2>${esc(g.title)}</h2><a href="${g.link}" target="_blank" rel="noopener">باز کردن ↗</a></div>
+    ${rows.map(r => `<div class="row"><span class="dot ${r.s}"></span><div><div class="name">${esc(r.name)}</div>
+      <div class="detail ${r.s === "bad" ? "bad" : r.s === "warn" ? "warn" : ""}">${esc(r.d || "")}</div></div></div>`).join("")}
+    ${tunnelLine}
+  </section>`;
+}
+
+let running = false, ghCheckedAt = 0;
+async function runAll() {
+  if (running) return;
+  running = true;
+  $("refreshBtn").disabled = true;
+  $("checkedAt").textContent = "در حال بررسی…";
+  $("cards").innerHTML = GROUPS.map(g => renderCard(g, g.pending.map(n => ({ name: n, s: "wait", d: "در حال بررسی…" })))).join("");
+
+  // زمان عوض شدن تونل از GitHub API — حداکثر هر ۱۰ دقیقه یک بار (سقف ۶۰ درخواست در ساعت)
+  let ghP = Promise.resolve();
+  if (Date.now() - ghCheckedAt > 10 * 60 * 1000) {
+    ghCheckedAt = Date.now();
+    ghP = Promise.all(["dashboard", "sanhab"].map(async repo => {
+      const at = await tunnelChangedAt(repo);
+      if (at) tunnelInfo[repo] = { ...(tunnelInfo[repo] || {}), changedAt: at };
+    }));
+  }
+
+  const results = await Promise.all(GROUPS.map(async g => {
+    let res;
+    try { res = await g.run(); } catch (e) { res = { rows: [{ name: g.title, s: "bad", d: "خطای غیرمنتظره در بررسی" }] }; }
+    if (g.repo) await ghP;
+    if (g.repo) tunnelInfo[g.repo] = { ...(tunnelInfo[g.repo] || {}), api: res.api };
+    $("card-" + g.id).outerHTML = renderCard(g, res.rows);
+    return res.rows;
+  }));
+
+  const all = results.flat();
+  const bad = all.filter(r => r.s === "bad").length, warn = all.filter(r => r.s === "warn").length;
+  const sum = $("summary");
+  sum.className = "summary " + (bad ? "bad" : warn ? "warn" : "ok");
+  $("sumIcon").textContent = bad ? "!" : warn ? "؟" : "✓";
+  $("sumTitle").textContent = bad ? fa(bad) + " مورد مشکل داره" : warn ? fa(warn) + " مورد نیاز به توجه" : "همه‌چیز سالمه";
+  $("sumText").textContent = fa(all.length - bad - warn) + " از " + fa(all.length) + " مورد سالم";
+  document.title = (bad ? "🔴 " : warn ? "🟠 " : "🟢 ") + "وضعیت سیستم‌ها";
+  $("checkedAt").textContent = "آخرین بررسی: " + fa(new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }));
+  $("refreshBtn").disabled = false;
+  running = false;
+}
+
+$("refreshBtn").addEventListener("click", () => { ghCheckedAt = 0; runAll(); });
+let timer = setInterval(() => { if (!document.hidden) runAll(); }, AUTO_REFRESH_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) runAll(); });
+runAll();
+</script>
+</body>
+</html>
