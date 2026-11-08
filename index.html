@@ -58,11 +58,34 @@ button.refresh:disabled { opacity: .55; }
 .row .detail { color: var(--muted); font-size: 12.5px; word-break: break-word; }
 .row .detail.bad { color: var(--bad); } .row .detail.warn { color: var(--warn); }
 .tunnel { font-size: 12px; color: var(--muted); padding: 0 16px 12px; direction: ltr; text-align: left; word-break: break-all; }
+.hidden { display: none !important; }
+.login { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 18px; margin-top: 8vh; }
+.login h1 { margin-bottom: 4px; }
+.login label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+.login input { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); direction: ltr; text-align: left; }
+.login button { width: 100%; margin-top: 18px; padding: 12px; }
+.err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 1em; }
+.user { display: flex; justify-content: center; gap: 8px; align-items: center; }
+.link-btn { font: inherit; font-size: 12px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; }
 footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 18px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap hidden" id="loginView">
+  <form class="login" id="loginForm" autocomplete="on">
+    <h1>وضعیت سیستم‌ها</h1>
+    <div class="sub">با همون نام کاربری و رمز هاب وارد شو (فقط سرپرست‌ها).</div>
+    <label for="username">نام کاربری</label>
+    <input id="username" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+    <label for="password">رمز عبور</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button class="refresh" id="loginBtn" type="submit">ورود</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div class="wrap hidden" id="appView">
   <header>
     <div>
       <h1>وضعیت سیستم‌ها</h1>
@@ -78,15 +101,20 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
 
   <div id="cards"></div>
 
-  <footer>هر ۲ دقیقه خودکار تازه می‌شه (فقط وقتی صفحه بازه).</footer>
+  <footer>
+    هر ۲ دقیقه خودکار تازه می‌شه (فقط وقتی صفحه بازه).
+    <div class="user"><span id="userLabel"></span> · <button class="link-btn" id="logoutBtn" type="button">خروج</button></div>
+  </footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
 <script>
 /* ================== تنظیمات ================== */
 const PAGES = "https://azkicenter.github.io";
 const GH_API = "https://api.github.com/repos/azkicenter";
 const SUPABASE_URL = "https://paokcjakxxjqtulibegi.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO";   // همون کلید عمومی هاب
+const USERNAME_EMAIL_DOMAIN = "bimename.com";                         // مثل هاب: نام کاربری@bimename.com
 const TIMEOUT_MS = 12000;
 const AUTO_REFRESH_MS = 2 * 60 * 1000;
 
@@ -228,8 +256,10 @@ async function checkHub() {
   // Supabase + تازگی دیتا (یک درخواست کوچیک)
   let hb;
   try {
+    const { data: { session } } = await sb.auth.getSession();
     const { r, ms } = await timedFetch(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", {
-      method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}",
+      method: "POST", body: "{}",
+      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", ...(session ? { Authorization: "Bearer " + session.access_token } : {}) },
     });
     if (r.status === 404) { rows.push({ name: "Supabase", s: "warn", d: "تابع status_heartbeat هنوز ساخته نشده" }); return { rows }; }
     if (!r.ok) { rows.push({ name: "Supabase", s: "bad", d: "خطای " + fa(r.status) }); return { rows }; }
@@ -322,10 +352,50 @@ async function runAll() {
   running = false;
 }
 
+/* ================== ورود (همون حساب‌های هاب، فقط سرپرست) ================== */
+// هاب و این صفحه هر دو روی azkicenter.github.io هستن، پس اگه توی هاب لاگینی اینجا هم خودکار وارد می‌شی
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let timer = null;
+
+function showLogin(msg) {
+  clearInterval(timer); timer = null;
+  $("appView").classList.add("hidden");
+  $("loginView").classList.remove("hidden");
+  $("loginErr").textContent = msg || "";
+}
+async function enter(user) {
+  const { data: profile, error } = await sb.from("profiles").select("role, full_name").eq("id", user.id).single();
+  if (error || !profile) return showLogin("پروفایل پیدا نشد؛ دوباره وارد شو");
+  if (profile.role !== "supervisor") { await sb.auth.signOut(); return showLogin("این صفحه فقط برای سرپرست‌هاست"); }
+  $("userLabel").textContent = (profile.full_name || "").trim() || user.email.split("@")[0];
+  $("loginView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+  runAll();
+  if (!timer) timer = setInterval(() => { if (!document.hidden) runAll(); }, AUTO_REFRESH_MS);
+}
+
+$("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("loginErr").textContent = "";
+  $("loginBtn").disabled = true; $("loginBtn").textContent = "در حال ورود…";
+  const username = $("username").value.replace(/\s+/g, "");
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: username.includes("@") ? username : username + "@" + USERNAME_EMAIL_DOMAIN,
+    password: $("password").value,
+  });
+  $("loginBtn").disabled = false; $("loginBtn").textContent = "ورود";
+  if (error) return showLogin(/network|fetch|failed to/i.test(error.message || "") ? "اتصال به سرور برقرار نشد" : "نام کاربری یا رمز عبور اشتباه است");
+  $("password").value = "";
+  enter(data.user);
+});
+$("logoutBtn").addEventListener("click", async () => { await sb.auth.signOut(); showLogin(); });
 $("refreshBtn").addEventListener("click", () => { ghCheckedAt = 0; runAll(); });
-let timer = setInterval(() => { if (!document.hidden) runAll(); }, AUTO_REFRESH_MS);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) runAll(); });
-runAll();
+document.addEventListener("visibilitychange", () => { if (!document.hidden && timer) runAll(); });
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) enter(session.user); else showLogin();
+})();
 </script>
 </body>
 </html>
