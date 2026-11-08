@@ -1,0 +1,42 @@
+{
+ "page_dashboard": {
+  "fails": 0,
+  "down": false
+ },
+ "page_sanhab": {
+  "fails": 0,
+  "down": false
+ },
+ "page_hub": {
+  "fails": 0,
+  "down": false
+ },
+ "dash_server": {
+  "fails": 0,
+  "down": false
+ },
+ "tarikhche": {
+  "fails": 0,
+  "down": false
+ },
+ "endorsement": {
+  "fails": 0,
+  "down": false
+ },
+ "stats": {
+  "fails": 0,
+  "down": false
+ },
+ "sanhab_server": {
+  "fails": 0,
+  "down": false
+ },
+ "supabase": {
+  "fails": 0,
+  "down": false
+ },
+ "n8n_ops": {
+  "fails": 0,
+  "down": false
+ }
+}
