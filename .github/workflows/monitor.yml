@@ -3,7 +3,12 @@ name: monitor
 on:
   schedule:
     - cron: "*/10 * * * *"   # هر ۱۰ دقیقه (گیت‌هاب گاهی چند دقیقه دیرتر اجرا می‌کنه)
-  workflow_dispatch:          # اجرای دستی از تب Actions برای تست
+  workflow_dispatch:          # اجرای دستی از تب Actions
+    inputs:
+      test_email:
+        description: "یه ایمیل تست هم بفرسته؟"
+        type: boolean
+        default: false
 
 permissions:
   contents: write             # فقط برای ذخیره‌ی state.json
@@ -25,6 +30,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           ALERT_TO: ${{ secrets.ALERT_TO }}
           QUIET_HOURS: ${{ vars.QUIET_HOURS }}
+          TEST_EMAIL: ${{ inputs.test_email }}
         run: python3 monitor.py
 
       - name: Save state

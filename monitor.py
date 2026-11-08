@@ -182,6 +182,15 @@ def main():
     still_down = [res[k][1] for k, st in state.items() if st.get("down") and k in res and not res[k][0]]
     print(json.dumps({k: v[0] for k, v in res.items()}, ensure_ascii=False))
 
+    if os.environ.get("TEST_EMAIL") == "true":  # اجرای دستی با گزینه‌ی «ایمیل تست»
+        ok_n = sum(1 for v in res.values() if v[0])
+        lines = ["✅ این یه ایمیل تستیه — هشدارهای مانیتور از این به بعد همین‌طوری می‌رسن.", "",
+                 f"وضعیت الان: {ok_n} از {len(res)} مورد سالم"]
+        lines += [f"🔴 {n}: {d}" for ok, n, d in res.values() if not ok]
+        lines += ["", "زمان: " + datetime.now(TEHRAN).strftime("%H:%M  %Y-%m-%d")]
+        send_mail("✅ تست هشدار سیستم‌ها", lines)
+        print("test email sent")
+
     if (went_down or came_back) and not in_quiet_hours():
         if went_down:
             subject = f"🔴 قطعی: {len(went_down)} مورد" + (f" (+{len(came_back)} وصل شد)" if came_back else "")
