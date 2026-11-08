@@ -16,7 +16,6 @@ SUPABASE_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO"
 STATE_FILE = "state.json"
 FAILS_BEFORE_ALERT = 2
 TEHRAN = timezone(timedelta(hours=3, minutes=30))
-LIMIT_HOURLY_MIN = 130   # آپدیت ساعتی: بیشتر از این = قطع
 LIMIT_OPS_MIN = 45       # وضعیت پنل کارشناسان (هر ۱۵ دقیقه)
 
 # ساعت‌های سکوت به وقت تهران، مثلا "23-8" یعنی از ۱۱ شب تا ۸ صبح ایمیل نفرست (خالی = همیشه)
@@ -128,8 +127,7 @@ def run_checks():
             mins = int((now - at).total_seconds() // 60)
             add(key, name, mins <= limit, f"آخرین آپدیت {mins} دقیقه پیش" + ("" if mins <= limit else " — n8n یا سیستم رو چک کن"))
 
-        fresh("n8n_hourly", "آپدیت ساعتی هاب (n8n)", jalali_tehran(hb.get("app_date"), hb.get("app_time")), LIMIT_HOURLY_MIN)
-        fresh("n8n_reports", "آپدیت گزارش‌ها (n8n)", jalali_tehran(hb.get("reports_date"), hb.get("reports_time")), LIMIT_HOURLY_MIN)
+        # آپدیت ساعتی هاب هشدار نمی‌ده (فقط توی صفحه زمان آخرین اجرا نشون داده می‌شه)
         ops = hb.get("ops_updated_at")
         fresh("n8n_ops", "وضعیت پنل کارشناسان (n8n)",
               datetime.fromisoformat(ops.replace("Z", "+00:00")) if ops else None, LIMIT_OPS_MIN)

@@ -51,6 +51,7 @@ button.refresh:disabled { opacity: .55; }
 .card-h + .row { border-top: 0; }
 .dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: var(--idle); }
 .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.dot.info { background: var(--accent); }
 .dot.wait { background: var(--idle); animation: pulse 1s infinite alternate; }
 @keyframes pulse { to { opacity: .3; } }
 .row .name { font-weight: 600; }
@@ -91,7 +92,6 @@ const AUTO_REFRESH_MS = 2 * 60 * 1000;
 
 // آستانه‌ها به دقیقه: [تا این‌قدر سبز، تا این‌قدر زرد، بعدش قرمز]
 const LIMITS = {
-  hourly: [80, 130],   // آپدیت ساعتی داشبورد و گزارش‌ها (معمولاً حدود دقیقه‌ی ۸ هر ساعت)
   ops:    [25, 45],    // وضعیت پنل کارشناسان (هر ۱۵ دقیقه)
 };
 
@@ -247,8 +247,13 @@ async function checkHub() {
     const age = now - at, s = freshness(age, lim);
     return { name, s, d: "آخرین آپدیت " + ago(age) + (label ? " · " + label : "") + (s === "ok" ? "" : " — n8n یا سیستم رو چک کن") };
   };
-  rows.push(fresh("آپدیت ساعتی (n8n)", tehranJalaliToMs(hb.app_date, hb.app_time), LIMITS.hourly, fa(hb.app_time || "")));
-  rows.push(fresh("آپدیت گزارش‌ها (n8n)", tehranJalaliToMs(hb.reports_date, hb.reports_time), LIMITS.hourly, fa(hb.reports_time || "")));
+  // آپدیت ساعتی: فقط زمان آخرین اجرا رو نشون می‌ده، هشدار نمی‌ده
+  const lastRun = (name, date, time) => {
+    const at = tehranJalaliToMs(date, time);
+    return { name, s: "info", d: at ? "آخرین اجرا ساعت " + fa(time) + " · " + ago(now - at) : "زمان اجرا پیدا نشد" };
+  };
+  rows.push(lastRun("آپدیت ساعتی (n8n)", hb.app_date, hb.app_time));
+  rows.push(lastRun("آپدیت گزارش‌ها (n8n)", hb.reports_date, hb.reports_time));
   rows.push(fresh("وضعیت پنل کارشناسان (n8n)", hb.ops_updated_at ? Date.parse(hb.ops_updated_at) : null, LIMITS.ops));
   return { rows };
 }
@@ -309,7 +314,8 @@ async function runAll() {
   sum.className = "summary " + (bad ? "bad" : warn ? "warn" : "ok");
   $("sumIcon").textContent = bad ? "!" : warn ? "؟" : "✓";
   $("sumTitle").textContent = bad ? fa(bad) + " مورد مشکل داره" : warn ? fa(warn) + " مورد نیاز به توجه" : "همه‌چیز سالمه";
-  $("sumText").textContent = fa(all.length - bad - warn) + " از " + fa(all.length) + " مورد سالم";
+  const checked = all.filter(r => r.s !== "info").length;
+  $("sumText").textContent = fa(checked - bad - warn) + " از " + fa(checked) + " مورد سالم";
   document.title = (bad ? "🔴 " : warn ? "🟠 " : "🟢 ") + "وضعیت سیستم‌ها";
   $("checkedAt").textContent = "آخرین بررسی: " + fa(new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }));
   $("refreshBtn").disabled = false;
