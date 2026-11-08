@@ -154,10 +154,6 @@ def send_mail(subject, lines):
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = user
     msg["To"] = ", ".join(to)
-    # تشخیص بدون لو دادن مقدارها (گیت‌هاب Secretها رو توی لاگ ماسک می‌کنه، ولی اینجا فقط شکلشون چاپ می‌شه)
-    print("diag user: has_at=%s domain=%s ascii=%s len=%d | pw: len=%d alpha=%s ascii=%s" % (
-        "@" in user, user.split("@")[-1] if "@" in user else "-", user.isascii(), len(user),
-        len(pw), pw.isalpha(), pw.isascii()))
     ctx = ssl.create_default_context()
     last = None
     for attempt in ("ssl465", "tls587"):
@@ -168,7 +164,6 @@ def send_mail(subject, lines):
                 s = smtplib.SMTP("smtp.gmail.com", 587, timeout=30); s.ehlo(); s.starttls(context=ctx); s.ehlo()
             with s:
                 s.user, s.password = user, pw
-                print(attempt, "server auth:", s.esmtp_features.get("auth", "-"))
                 try:
                     code, resp = s.auth("LOGIN", s.auth_login, initial_response_ok=False)
                 except smtplib.SMTPServerDisconnected:
