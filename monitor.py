@@ -143,17 +143,35 @@ def in_quiet_hours():
 
 
 def send_mail(subject, lines):
-    user, pw, to = os.environ["GMAIL_USER"], os.environ["GMAIL_APP_PASSWORD"], os.environ["ALERT_TO"]
+    # فاصله/خط اضافه‌ای که موقع کپی توی Secretها میاد رو پاک می‌کنه
+    user = os.environ["GMAIL_USER"].strip()
+    pw = "".join(os.environ["GMAIL_APP_PASSWORD"].split())   # App Password با یا بدون فاصله
+    to = [a.strip() for a in os.environ["ALERT_TO"].split(",") if a.strip()]
     html = ('<div dir="rtl" style="font-family:Tahoma,sans-serif;font-size:14px;line-height:1.8">'
             + "<br>".join(lines)
             + f'<br><br><a href="{PAGES}/status/">باز کردن صفحه‌ی وضعیت</a></div>')
     msg = MIMEText(html, "html", "utf-8")
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = user
-    msg["To"] = to
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
-        s.login(user, pw)
-        s.sendmail(user, [a.strip() for a in to.split(",")], msg.as_string())
+    msg["To"] = ", ".join(to)
+    ctx = ssl.create_default_context()
+    last = None
+    for attempt in ("ssl465", "tls587"):
+        try:
+            if attempt == "ssl465":
+                s = smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ctx, timeout=30)
+            else:
+                s = smtplib.SMTP("smtp.gmail.com", 587, timeout=30); s.ehlo(); s.starttls(context=ctx); s.ehlo()
+            with s:
+                s.login(user, pw)
+                s.sendmail(user, to, msg.as_string())
+            return
+        except smtplib.SMTPAuthenticationError as e:
+            raise RuntimeError(f"جیمیل نام کاربری/App Password رو قبول نکرد: {e.smtp_code} {e.smtp_error!r}")
+        except Exception as e:
+            last = e
+            print(f"send via {attempt} failed: {type(e).__name__}: {e}")
+    raise RuntimeError(f"ارسال ایمیل نشد: {last}")
 
 
 def main():

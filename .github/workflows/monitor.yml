@@ -34,6 +34,7 @@ jobs:
         run: python3 monitor.py
 
       - name: Save state
+        if: always()        # حتی اگه ارسال ایمیل خطا داد، وضعیت ذخیره بشه
         run: |
           if [ -n "$(git status --porcelain state.json)" ]; then
             git config user.name "status-bot"
