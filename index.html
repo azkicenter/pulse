@@ -297,7 +297,7 @@ async function checkHub() {
   rows.push(HB_ROW);
   const hb = HB;
   if (!hb) {
-    for (const n of ["آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"]) rows.push({ name: n, s: "warn", d: "نامشخص — Supabase در دسترس نیست" });
+    for (const n of ["آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "توکن ازکی‌ایجنت", "وضعیت پنل کارشناسان (n8n)"]) rows.push({ name: n, s: "warn", d: "نامشخص — Supabase در دسترس نیست" });
     return { rows };
   }
 
@@ -314,7 +314,29 @@ async function checkHub() {
   };
   rows.push(lastRun("آپدیت ساعتی (n8n)", hb.app_date, hb.app_time));
   rows.push(lastRun("آپدیت گزارش‌ها (n8n)", hb.reports_date, hb.reports_time));
-  rows.push(fresh("وضعیت پنل کارشناسان (n8n)", hb.ops_updated_at ? Date.parse(hb.ops_updated_at) : null, LIMITS.ops));
+  // توکن ازکی‌ایجنت (جدول agent_token؛ اکستنشن کروم آپدیتش می‌کنه) — workflow پنل کارشناسان بدون اون کار نمی‌کنه
+  const texp = hb.token_exp ? Date.parse(hb.token_exp) : null;
+  const tupd = hb.token_updated_at ? Date.parse(hb.token_updated_at) : null;
+  const left = texp ? texp - now : -1;
+  const hhmm = ms => fa(new Date(ms).toLocaleTimeString("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }));
+  const dayT = ms => new Date(ms).toLocaleDateString("en-GB", { timeZone: "Asia/Tehran" });
+  const inLeft = ms => { const m = Math.round(ms / 60000); return m < 60 ? fa(m) + " دقیقه" : fa(Math.floor(m / 60)) + " ساعت" + (m % 60 ? " و " + fa(m % 60) + " دقیقه" : ""); };
+  const tokUpd = tupd ? " · آپدیت شده " + ago(now - tupd) + (hb.token_source === "chrome-extension" ? " (اکستنشن)" : "") : "";
+  const tok = !texp
+    ? { name: "توکن ازکی‌ایجنت", s: "bad", d: "توکنی ثبت نشده — با دکمه‌ی «آپدیت توکن» اکستنشن ثبتش کن" }
+    : left <= 0
+      ? { name: "توکن ازکی‌ایجنت", s: "bad", d: "منقضی شده (" + ago(-left).replace(" پیش", "") + " پیش) — با دکمه‌ی «آپدیت توکن» اکستنشن عوضش کن" + tokUpd }
+      : { name: "توکن ازکی‌ایجنت", s: left < 2 * 3600e3 ? "warn" : "ok",
+          d: "معتبر تا " + (dayT(texp) !== dayT(now) ? "فردا " : "") + "ساعت " + hhmm(texp) + " (" + inLeft(left) + " دیگه)" + (left < 2 * 3600e3 ? " — به‌زودی منقضی می‌شه" : "") + tokUpd };
+  rows.push(tok);
+
+  const ops = fresh("وضعیت پنل کارشناسان (n8n)", hb.ops_updated_at ? Date.parse(hb.ops_updated_at) : null, LIMITS.ops);
+  if (ops.s !== "ok") {
+    ops.d = ops.d.replace(" — n8n یا سیستم رو چک کن", "") + (tok.s === "bad"
+      ? " — به‌خاطر توکن ازکی‌ایجنت"
+      : " — توکن معتبره؛ Executions ورک‌فلو Panel Status توی n8n رو چک کن");
+  }
+  rows.push(ops);
   return { rows };
 }
 
@@ -325,7 +347,7 @@ const GROUPS = [
   { id: "sanhab", title: "سنهاب", link: PAGES + "/sanhab/", run: checkSanhab, repo: "sanhab",
     pending: ["صفحه‌ی سنهاب", "سرور (cmd سنهاب)"] },
   { id: "hub", title: "هاب ازکی سنتر", link: PAGES + "/hub/", run: checkHub,
-    pending: ["صفحه‌ی هاب", "Supabase", "آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"] },
+    pending: ["صفحه‌ی هاب", "Supabase", "آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "توکن ازکی‌ایجنت", "وضعیت پنل کارشناسان (n8n)"] },
   { id: "wallboard", title: "وال برد", link: PAGES + "/wallboard/", run: checkWallboard,
     pending: ["صفحه‌ی وال برد"] },
 ];

@@ -146,6 +146,14 @@ def run_checks():
             add(key, name, mins <= limit, f"آخرین آپدیت {mins} دقیقه پیش" + ("" if mins <= limit else " — n8n یا سیستم رو چک کن"))
 
         # آپدیت ساعتی هاب هشدار نمی‌ده (فقط توی صفحه زمان آخرین اجرا نشون داده می‌شه)
+        # توکن ازکی‌ایجنت: منقضی = قطعی (workflow پنل کارشناسان بدون اون کار نمی‌کنه)
+        texp = hb.get("token_exp")
+        if not texp:
+            add("agent_token", "توکن ازکی‌ایجنت", False, "توکنی ثبت نشده — با اکستنشن کروم ثبتش کن")
+        else:
+            left = int((datetime.fromisoformat(texp.replace("Z", "+00:00")) - now).total_seconds() // 60)
+            add("agent_token", "توکن ازکی‌ایجنت", left > 0,
+                f"معتبر تا {left} دقیقه‌ی دیگه" if left > 0 else "منقضی شده — با دکمه‌ی «آپدیت توکن» اکستنشن عوضش کن")
         ops = hb.get("ops_updated_at")
         fresh("n8n_ops", "وضعیت پنل کارشناسان (n8n)",
               datetime.fromisoformat(ops.replace("Z", "+00:00")) if ops else None, LIMIT_OPS_MIN)
