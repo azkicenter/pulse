@@ -28,7 +28,7 @@
   "down": false
  },
  "sanhab_server": {
-  "fails": 0,
+  "fails": 1,
   "down": false
  },
  "supabase": {
@@ -36,6 +36,14 @@
   "down": false
  },
  "n8n_ops": {
+  "fails": 1,
+  "down": false
+ },
+ "page_wallboard": {
+  "fails": 0,
+  "down": false
+ },
+ "agent_token": {
   "fails": 0,
   "down": false
  }
