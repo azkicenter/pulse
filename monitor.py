@@ -78,6 +78,23 @@ def jalali_tehran(date, time_):
     return datetime(gy, gm, gd, int(t[1]), int(t[2]), tzinfo=TEHRAN)
 
 
+MAINT = {}  # برنامه‌هایی که از صفحه‌ی وضعیت خاموش (حالت تعمیر) شدن
+
+# هر چک مال کدوم برنامه‌ست (برای نادیده گرفتن برنامه‌ی خاموش)
+KEY_APP = {"page_dashboard": "dashboard", "dash_server": "dashboard", "endorsement": "dashboard", "stats": "dashboard",
+           "tarikhche": "tarikhche", "page_sanhab": "sanhab", "sanhab_server": "sanhab",
+           "page_hub": "hub", "page_wallboard": "wallboard"}
+
+
+def is_off(key):
+    app = KEY_APP.get(key)
+    if not app:
+        return False
+    if MAINT.get(app, {}).get("on"):
+        return True
+    return app == "tarikhche" and MAINT.get("dashboard", {}).get("on", False)
+
+
 def run_checks():
     res = {}  # key -> (ok, name, detail)
 
@@ -85,7 +102,7 @@ def run_checks():
         res[key] = (ok, name, detail)
 
     # صفحه‌ها
-    for repo, name in [("dashboard", "صفحه‌ی داشبورد"), ("sanhab", "صفحه‌ی سنهاب"), ("hub", "صفحه‌ی هاب")]:
+    for repo, name in [("dashboard", "صفحه‌ی داشبورد"), ("sanhab", "صفحه‌ی سنهاب"), ("hub", "صفحه‌ی هاب"), ("wallboard", "صفحه‌ی وال برد")]:
         code, _ = http(f"{PAGES}/{repo}/")
         add(f"page_{repo}", name, code == 200, f"HTTP {code}" if code else "باز نشد")
 
@@ -119,6 +136,7 @@ def run_checks():
     else:
         add("supabase", "Supabase", True, "OK")
         hb = json.loads(txt)
+        MAINT.update(hb.get("maintenance") or {})
         now = datetime.fromisoformat(hb["now"].replace("Z", "+00:00"))
 
         def fresh(key, name, at, limit):
@@ -189,6 +207,12 @@ def main():
     prev_down = {k: v.get("down", False) for k, v in state.items()}
     went_down, came_back = [], []
 
+    off = [k for k in res if is_off(k)]
+    if off:
+        print("maintenance (skipped):", off)
+    for k in off:  # برنامه‌ی خاموش: نه هشدار قطعی، نه «وصل شد»؛ وضعیتش صفر می‌شه
+        res.pop(k)
+        state[k] = {"fails": 0, "down": False}
     for key, (ok, name, detail) in res.items():
         st = state.get(key, {"fails": 0, "down": False})
         if ok:

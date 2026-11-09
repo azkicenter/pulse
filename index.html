@@ -52,6 +52,19 @@ button.refresh:disabled { opacity: .55; }
 .dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: var(--idle); }
 .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
 .dot.info { background: var(--accent); }
+.dot.maint { background: var(--idle); }
+.badge { font-size: 11px; font-weight: 700; color: var(--warn); background: var(--warn-bg); border-radius: 6px; padding: 1px 6px; margin-inline-start: 6px; }
+.sw-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.card-h + .sw-row { border-top: 0; }
+.sw-row .grow { flex: 1; min-width: 0; }
+.switch { position: relative; width: 50px; height: 30px; flex-shrink: 0; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+.switch .track { position: absolute; inset: 0; border-radius: 15px; background: var(--bad); transition: background .2s; }
+.switch .knob { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.switch input:checked + .track { background: var(--ok); }
+.switch input:checked + .track .knob { transform: translateX(-20px); }
+.switch input:disabled + .track { opacity: .5; }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dot.wait { background: var(--idle); animation: pulse 1s infinite alternate; }
 @keyframes pulse { to { opacity: .3; } }
 .row .name { font-weight: 600; }
@@ -98,6 +111,11 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
     <div class="big" id="sumIcon">…</div>
     <div><b id="sumTitle">در حال بررسی…</b><span class="sub" id="sumText"></span></div>
   </div>
+
+  <section class="card" id="switches">
+    <div class="card-h"><h2>روشن / خاموش برنامه‌ها</h2></div>
+    <div class="sw-row"><div class="grow detail">در حال بارگذاری…</div></div>
+  </section>
 
   <div id="cards"></div>
 
@@ -215,32 +233,54 @@ async function probe(url, opts) {
 
 async function checkDashboard() {
   const api = await readTunnel("dashboard");
-  const rows = [{ name: "صفحه‌ی داشبورد", ...(await checkPage("/dashboard/")) }];
+  const rows = [{ name: "صفحه‌ی داشبورد", app: "dashboard", ...(await checkPage("/dashboard/")) }];
   if (!api) {
-    rows.push({ name: "سرور (cmd داشبورد)", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
+    rows.push({ name: "سرور (cmd داشبورد)", app: "dashboard", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
     return { rows, api };
   }
   const gw = await probe(api + "/auth/health");
-  rows.push({ name: "سرور + لاگین (cmd داشبورد)", ...gw });
+  rows.push({ name: "سرور + لاگین (cmd داشبورد)", app: "dashboard", ...gw });
   if (gw.s === "bad") {
-    for (const n of ["تاریخچه‌خوان", "الحاقیه ایران", "آمار درخواست‌ها"]) rows.push({ name: n, s: "bad", d: "سرور اصلی بالا نیست" });
+    for (const [n, app] of [["تاریخچه‌خوان", "tarikhche"], ["الحاقیه ایران", "dashboard"], ["آمار درخواست‌ها", "dashboard"]]) rows.push({ name: n, app, s: "bad", d: "سرور اصلی بالا نیست" });
   } else {
     const [t, e, s] = await Promise.all([
       probe(api + "/tarikhche/api/ping"),
       probe(api + "/endorsement/api/endorsement/search"),
       probe(api + "/stats/api/summary?days=1"),
     ]);
-    rows.push({ name: "تاریخچه‌خوان", ...t }, { name: "الحاقیه ایران", ...e }, { name: "آمار درخواست‌ها", ...s });
+    rows.push({ name: "تاریخچه‌خوان", app: "tarikhche", ...t }, { name: "الحاقیه ایران", app: "dashboard", ...e }, { name: "آمار درخواست‌ها", app: "dashboard", ...s });
   }
   return { rows, api };
 }
 
 async function checkSanhab() {
   const api = await readTunnel("sanhab");
-  const rows = [{ name: "صفحه‌ی سنهاب", ...(await checkPage("/sanhab/")) }];
-  if (!api) rows.push({ name: "سرور (cmd سنهاب)", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
-  else rows.push({ name: "سرور (cmd سنهاب)", ...(await probe(api + "/api/me")) });
+  const rows = [{ name: "صفحه‌ی سنهاب", app: "sanhab", ...(await checkPage("/sanhab/")) }];
+  if (!api) rows.push({ name: "سرور (cmd سنهاب)", app: "sanhab", s: "bad", d: "آدرس تونل توی config.js پیدا نشد" });
+  else rows.push({ name: "سرور (cmd سنهاب)", app: "sanhab", ...(await probe(api + "/api/me")) });
   return { rows, api };
+}
+
+// heartbeat یک بار در هر بررسی گرفته می‌شه: زمان‌های n8n + وضعیت کلیدهای تعمیر
+let HB = null, HB_ROW = null, MAINT = {};
+async function fetchHeartbeat() {
+  HB = null;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const { r, ms } = await timedFetch(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", {
+      method: "POST", body: "{}",
+      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", ...(session ? { Authorization: "Bearer " + session.access_token } : {}) },
+    });
+    if (!r.ok) { HB_ROW = { name: "Supabase", s: "bad", d: "خطای " + fa(r.status) }; return; }
+    HB = await r.json();
+    MAINT = HB.maintenance || {};
+    HB_ROW = { name: "Supabase", s: "ok", d: "در دسترس · " + fa(ms) + " میلی‌ثانیه" };
+  } catch (e) { HB_ROW = { name: "Supabase", s: "bad", d: "جواب نداد" }; }
+}
+const isOff = app => !!(MAINT[app] && MAINT[app].on);
+
+async function checkWallboard() {
+  return { rows: [{ name: "صفحه‌ی وال برد", app: "wallboard", ...(await checkPage("/wallboard/")) }] };
 }
 
 async function checkHub() {
@@ -249,24 +289,14 @@ async function checkHub() {
   try {
     const { r, ms } = await timedFetch(`${PAGES}/hub/version.txt?t=${Date.now()}`);
     rows.push(r.ok
-      ? { name: "صفحه‌ی هاب", s: "ok", d: "نسخه‌ی \u2066" + fa((await r.text()).trim()) + "\u2069 · " + fa(ms) + " میلی‌ثانیه" }
-      : { name: "صفحه‌ی هاب", s: "bad", d: "خطای " + fa(r.status) });
-  } catch (e) { rows.push({ name: "صفحه‌ی هاب", s: "bad", d: "باز نشد" }); }
+      ? { name: "صفحه‌ی هاب", app: "hub", s: "ok", d: "نسخه‌ی \u2066" + fa((await r.text()).trim()) + "\u2069 · " + fa(ms) + " میلی‌ثانیه" }
+      : { name: "صفحه‌ی هاب", app: "hub", s: "bad", d: "خطای " + fa(r.status) });
+  } catch (e) { rows.push({ name: "صفحه‌ی هاب", app: "hub", s: "bad", d: "باز نشد" }); }
 
-  // Supabase + تازگی دیتا (یک درخواست کوچیک)
-  let hb;
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    const { r, ms } = await timedFetch(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", {
-      method: "POST", body: "{}",
-      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", ...(session ? { Authorization: "Bearer " + session.access_token } : {}) },
-    });
-    if (r.status === 404) { rows.push({ name: "Supabase", s: "warn", d: "تابع status_heartbeat هنوز ساخته نشده" }); return { rows }; }
-    if (!r.ok) { rows.push({ name: "Supabase", s: "bad", d: "خطای " + fa(r.status) }); return { rows }; }
-    hb = await r.json();
-    rows.push({ name: "Supabase", s: "ok", d: "در دسترس · " + fa(ms) + " میلی‌ثانیه" });
-  } catch (e) {
-    rows.push({ name: "Supabase", s: "bad", d: "جواب نداد" });
+  // Supabase + تازگی دیتا (از همون heartbeat اول بررسی)
+  rows.push(HB_ROW);
+  const hb = HB;
+  if (!hb) {
     for (const n of ["آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"]) rows.push({ name: n, s: "warn", d: "نامشخص — Supabase در دسترس نیست" });
     return { rows };
   }
@@ -296,7 +326,54 @@ const GROUPS = [
     pending: ["صفحه‌ی سنهاب", "سرور (cmd سنهاب)"] },
   { id: "hub", title: "هاب ازکی سنتر", link: PAGES + "/hub/", run: checkHub,
     pending: ["صفحه‌ی هاب", "Supabase", "آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "وضعیت پنل کارشناسان (n8n)"] },
+  { id: "wallboard", title: "وال برد", link: PAGES + "/wallboard/", run: checkWallboard,
+    pending: ["صفحه‌ی وال برد"] },
 ];
+
+// برنامه‌هایی که کلید خاموش/روشن دارن (همون اسم‌هایی که توی Supabase و gate.js استفاده می‌شه)
+const APPS = [
+  { id: "hub",       title: "هاب ازکی سنتر" },
+  { id: "dashboard", title: "داشبورد عملیات (کل داشبورد)" },
+  { id: "tarikhche", title: "تاریخچه‌خوان" },
+  { id: "sanhab",    title: "استعلام سنهاب" },
+  { id: "wallboard", title: "وال برد" },
+];
+
+function renderSwitches() {
+  const rows = APPS.map(a => {
+    const m = MAINT[a.id] || {};
+    const off = !!m.on;
+    const who = m.at ? (off ? "خاموش شد " : "روشن شد ") + ago(Date.now() - Date.parse(m.at)) + (m.by ? " · " + m.by : "") : "روشن";
+    return `<div class="sw-row">
+      <div class="grow"><div class="name">${esc(a.title)}${off ? '<span class="badge">در حال تعمیر</span>' : ""}</div>
+        <div class="detail">${esc(who)}</div></div>
+      <label class="switch" title="${off ? "روشن کردن" : "خاموش کردن (نمایش صفحه‌ی در حال تعمیر)"}">
+        <input type="checkbox" data-app="${a.id}" ${off ? "" : "checked"} ${HB ? "" : "disabled"} aria-label="${esc(a.title)}">
+        <span class="track"><span class="knob"></span></span>
+      </label></div>`;
+  }).join("");
+  $("switches").innerHTML = `<div class="card-h"><h2>روشن / خاموش برنامه‌ها</h2></div>${rows}
+    <div class="tunnel" dir="rtl" style="text-align:right">برنامه‌ی خاموش به‌جای صفحه‌ی خودش «در حال به‌روزرسانی» نشون می‌ده و مانیتور براش ایمیل قطعی نمی‌فرسته. برای تست حین تعمیر، آخر آدرسش <span dir="ltr">?bypass=1</span> بذار.</div>`;
+}
+
+$("switches").addEventListener("change", async e => {
+  const inp = e.target.closest("input[data-app]");
+  if (!inp) return;
+  const app = inp.dataset.app, turnOff = !inp.checked;
+  inp.disabled = true;
+  const { error, data } = await sb.rpc("maintenance_set", { p_app: app, p_on: turnOff });
+  if (error) {
+    inp.checked = !inp.checked;
+    inp.disabled = false;
+    const d = inp.closest(".sw-row").querySelector(".detail");
+    d.textContent = "عوض نشد: " + (error.code === "42501" ? "فقط سرپرست‌ها اجازه دارن" : (error.message || "خطا"));
+    d.className = "detail bad";
+    return;
+  }
+  MAINT = data || MAINT;
+  renderSwitches();
+  runAll();
+});
 const tunnelInfo = {};   // repo → { api, changedAt }
 
 function renderCard(g, rows) {
@@ -305,7 +382,7 @@ function renderCard(g, rows) {
     ? `<div class="tunnel">${esc(t.api.replace(/^https?:\/\//, ""))}${t.changedAt ? " · <span dir=\"rtl\">آدرس تونل " + ago(Date.now() - t.changedAt) + " عوض شده</span>" : ""}</div>` : "";
   return `<section class="card" id="card-${g.id}">
     <div class="card-h"><h2>${esc(g.title)}</h2><a href="${g.link}" target="_blank" rel="noopener">باز کردن ↗</a></div>
-    ${rows.map(r => `<div class="row"><span class="dot ${r.s}"></span><div><div class="name">${esc(r.name)}</div>
+    ${rows.map(r => `<div class="row"><span class="dot ${r.s}"></span><div><div class="name">${esc(r.name)}${r.s === "maint" ? '<span class="badge">خاموش</span>' : ""}</div>
       <div class="detail ${r.s === "bad" ? "bad" : r.s === "warn" ? "warn" : ""}">${esc(r.d || "")}</div></div></div>`).join("")}
     ${tunnelLine}
   </section>`;
@@ -329,9 +406,20 @@ async function runAll() {
     }));
   }
 
+  await fetchHeartbeat();
+  renderSwitches();
+
   const results = await Promise.all(GROUPS.map(async g => {
     let res;
     try { res = await g.run(); } catch (e) { res = { rows: [{ name: g.title, s: "bad", d: "خطای غیرمنتظره در بررسی" }] }; }
+    // برنامه‌ی خاموش (حالت تعمیر): خطاهاش شمرده نمی‌شه
+    const dashOff = isOff("dashboard");
+    for (const r of res.rows) {
+      if (r.app && (isOff(r.app) || (dashOff && r.app === "tarikhche"))) {
+        r.d = "خاموش (حالت تعمیر)" + (r.s === "ok" ? "" : " · " + r.d);
+        r.s = "maint";
+      }
+    }
     if (g.repo) await ghP;
     if (g.repo) tunnelInfo[g.repo] = { ...(tunnelInfo[g.repo] || {}), api: res.api };
     $("card-" + g.id).outerHTML = renderCard(g, res.rows);
@@ -344,7 +432,7 @@ async function runAll() {
   sum.className = "summary " + (bad ? "bad" : warn ? "warn" : "ok");
   $("sumIcon").textContent = bad ? "!" : warn ? "؟" : "✓";
   $("sumTitle").textContent = bad ? fa(bad) + " مورد مشکل داره" : warn ? fa(warn) + " مورد نیاز به توجه" : "همه‌چیز سالمه";
-  const checked = all.filter(r => r.s !== "info").length;
+  const checked = all.filter(r => r.s !== "info" && r.s !== "maint").length;
   $("sumText").textContent = fa(checked - bad - warn) + " از " + fa(checked) + " مورد سالم";
   document.title = (bad ? "🔴 " : warn ? "🟠 " : "🟢 ") + "وضعیت سیستم‌ها";
   $("checkedAt").textContent = "آخرین بررسی: " + fa(new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }));
