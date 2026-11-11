@@ -128,8 +128,8 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
 <script>
 /* ================== تنظیمات ================== */
-const PAGES = "https://azkicenter.github.io";
-const GH_API = "https://api.github.com/repos/azkicenter";
+// همه‌ی برنامه‌ها روی دامنه‌ی issueteam.ir (همون سایتی که این صفحه روشه)؛ آدرس‌های github.io هم به همین‌جا ریدایرکت می‌شن
+const PAGES = /(^|\.)issueteam\.ir$/.test(location.hostname) ? location.origin : "http://issueteam.ir";
 const SUPABASE_URL = "https://paokcjakxxjqtulibegi.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO";   // همون کلید عمومی هاب
 const USERNAME_EMAIL_DOMAIN = "bimename.com";                         // مثل هاب: نام کاربری@bimename.com
@@ -202,21 +202,17 @@ async function checkPage(path) {
 
 // آدرس فعلی تونل از config.js همون ریپو
 async function readTunnel(repo) {
+  // اول از Supabase (همون جایی که خود برنامه‌ها آدرس تونل رو اول ازش می‌خونن و فوری آپدیت می‌شه)
+  const fromSb = HB && HB["tunnel_" + repo];
+  if (fromSb && /^https:\/\//.test(fromSb)) return fromSb.replace(/\/+$/, "");
+  // پشتیبان: config.js همون برنامه
   try {
     const { r } = await timedFetch(`${PAGES}/${repo}/config.js?t=${Date.now()}`);
     const m = (await r.text()).match(/API_BASE\s*:\s*["']([^"']+)["']/);
     return m ? m[1].replace(/\/+$/, "") : null;
   } catch (e) { return null; }
 }
-// آخرین باری که آدرس تونل توی ریپو عوض شده (فقط برای اطلاع)
-async function tunnelChangedAt(repo) {
-  try {
-    const { r } = await timedFetch(`${GH_API}/${repo}/commits?path=config.js&per_page=1`);
-    if (!r.ok) return null;
-    const j = await r.json();
-    return j[0] ? Date.parse(j[0].commit.committer.date) : null;
-  } catch (e) { return null; }
-}
+const tunnelChangedAt = repo => (HB && HB["tunnel_" + repo + "_at"]) ? Date.parse(HB["tunnel_" + repo + "_at"]) : null;
 
 // پینگ یک سرویس پشت تونل:
 // هر جوابی از خود سرور (حتی ۴۰۱ «لاگین لازمه» یا ۴۰۵) یعنی زنده‌ست؛ ۵۰۲/۵۰۳/۵۰۴ یعنی گیت‌وی بالاست ولی سرویس نه.
@@ -412,7 +408,7 @@ function renderCard(g, rows) {
   </section>`;
 }
 
-let running = false, ghCheckedAt = 0;
+let running = false;
 async function runAll() {
   if (running) return;
   running = true;
@@ -421,15 +417,6 @@ async function runAll() {
   $("cards").innerHTML = GROUPS.map(g => renderCard(g, g.pending.map(n => ({ name: n, s: "wait", d: "در حال بررسی…" })))).join("");
 
   // زمان عوض شدن تونل از GitHub API — حداکثر هر ۱۰ دقیقه یک بار (سقف ۶۰ درخواست در ساعت)
-  let ghP = Promise.resolve();
-  if (Date.now() - ghCheckedAt > 10 * 60 * 1000) {
-    ghCheckedAt = Date.now();
-    ghP = Promise.all(["dashboard", "sanhab"].map(async repo => {
-      const at = await tunnelChangedAt(repo);
-      if (at) tunnelInfo[repo] = { ...(tunnelInfo[repo] || {}), changedAt: at };
-    }));
-  }
-
   await fetchHeartbeat();
   renderSwitches();
 
@@ -444,8 +431,7 @@ async function runAll() {
         r.s = "maint";
       }
     }
-    if (g.repo) await ghP;
-    if (g.repo) tunnelInfo[g.repo] = { ...(tunnelInfo[g.repo] || {}), api: res.api };
+    if (g.repo) tunnelInfo[g.repo] = { api: res.api, changedAt: tunnelChangedAt(g.repo) };
     $("card-" + g.id).outerHTML = renderCard(g, res.rows);
     return res.rows;
   }));
@@ -465,7 +451,7 @@ async function runAll() {
 }
 
 /* ================== ورود (همون حساب‌های هاب، فقط سرپرست) ================== */
-// هاب و این صفحه هر دو روی azkicenter.github.io هستن، پس اگه توی هاب لاگینی اینجا هم خودکار وارد می‌شی
+// ورود با همون حساب‌های هاب (Supabase)؛ سشن توی همین مرورگر می‌مونه
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let timer = null;
 
@@ -501,7 +487,7 @@ $("loginForm").addEventListener("submit", async e => {
   enter(data.user);
 });
 $("logoutBtn").addEventListener("click", async () => { await sb.auth.signOut(); showLogin(); });
-$("refreshBtn").addEventListener("click", () => { ghCheckedAt = 0; runAll(); });
+$("refreshBtn").addEventListener("click", () => runAll());
 document.addEventListener("visibilitychange", () => { if (!document.hidden && timer) runAll(); });
 
 (async () => {

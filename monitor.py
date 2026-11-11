@@ -10,7 +10,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 
 RAW = "https://raw.githubusercontent.com/azkicenter/{repo}/main/config.js"
-PAGES = "https://azkicenter.github.io"
+PAGES = "http://issueteam.ir"   # دامنه‌ی جدید (آدرس‌های github.io هم به همین‌جا ریدایرکت می‌شن)
 SUPABASE_URL = "https://paokcjakxxjqtulibegi.supabase.co"
 SUPABASE_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO"
 STATE_FILE = "state.json"
@@ -46,7 +46,25 @@ def probe(url):
     return True, f"OK ({code})"
 
 
+HB_CACHE = {}
+
+
+def heartbeat():
+    """status_heartbeat یک بار در هر اجرا (زمان‌های n8n، توکن، کلیدهای تعمیر، آدرس تونل‌ها)."""
+    if "v" not in HB_CACHE:
+        code, txt = http(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", "POST",
+                         {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}, "{}")
+        HB_CACHE["v"] = (code, txt)
+    return HB_CACHE["v"]
+
+
 def tunnel(repo):
+    # اول از Supabase (همون منبعی که خود برنامه‌ها اول ازش می‌خونن)، بعد config.js
+    code, txt = heartbeat()
+    if code == 200:
+        v = (json.loads(txt).get("tunnel_" + repo) or "").rstrip("/")
+        if v.startswith("https://"):
+            return v
     code, txt = http(RAW.format(repo=repo) + f"?t={int(time.time())}")
     m = re.search(r"API_BASE\s*:\s*[\"']([^\"']+)[\"']", txt or "") if code == 200 else None
     return m.group(1).rstrip("/") if m else None
@@ -103,7 +121,7 @@ def run_checks():
 
     # صفحه‌ها
     for repo, name in [("dashboard", "صفحه‌ی داشبورد"), ("sanhab", "صفحه‌ی سنهاب"), ("hub", "صفحه‌ی هاب"), ("wallboard", "صفحه‌ی وال برد")]:
-        code, _ = http(f"{PAGES}/{repo}/")
+        code, _ = http(f"{PAGES}/{'azkicenter' if repo == 'hub' else repo}/")   # هاب الان روی /azkicenter/ ـه
         if repo == "hub" and code != 200:  # ریپوی هاب به azkicenter تغییر نام می‌ده؛ هر دو آدرس قبوله
             code2, _ = http(f"{PAGES}/azkicenter/")
             if code2 == 200:
@@ -133,8 +151,7 @@ def run_checks():
         add("sanhab_server", "سرور سنهاب (cmd)", ok, d if ok else d + " — سیستم یا cmd خاموشه؟")
 
     # Supabase + n8n
-    code, txt = http(SUPABASE_URL + "/rest/v1/rpc/status_heartbeat", "POST",
-                     {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}, "{}")
+    code, txt = heartbeat()
     if code != 200:
         add("supabase", "Supabase", False, f"HTTP {code}" if code else "جواب نداد")
     else:
@@ -215,6 +232,7 @@ def main():
         state = json.load(open(STATE_FILE, encoding="utf-8"))
     except Exception:
         state = {}
+    HB_CACHE.clear()
     res = run_checks()
     prev_down = {k: v.get("down", False) for k, v in state.items()}
     went_down, came_back = [], []
