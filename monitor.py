@@ -104,6 +104,10 @@ def run_checks():
     # صفحه‌ها
     for repo, name in [("dashboard", "صفحه‌ی داشبورد"), ("sanhab", "صفحه‌ی سنهاب"), ("hub", "صفحه‌ی هاب"), ("wallboard", "صفحه‌ی وال برد")]:
         code, _ = http(f"{PAGES}/{repo}/")
+        if repo == "hub" and code != 200:  # ریپوی هاب به azkicenter تغییر نام می‌ده؛ هر دو آدرس قبوله
+            code2, _ = http(f"{PAGES}/azkicenter/")
+            if code2 == 200:
+                code = code2
         add(f"page_{repo}", name, code == 200, f"HTTP {code}" if code else "باز نشد")
 
     # داشبورد عملیات

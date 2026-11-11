@@ -287,7 +287,9 @@ async function checkHub() {
   const rows = [];
   // صفحه + نسخه
   try {
-    const { r, ms } = await timedFetch(`${PAGES}/hub/version.txt?t=${Date.now()}`);
+    // ریپوی هاب به azkicenter تغییر نام داده؛ تا وقتی آدرس جدید جواب نداده، آدرس قدیمی رو هم امتحان می‌کنه
+    let { r, ms } = await timedFetch(`${PAGES}/azkicenter/version.txt?t=${Date.now()}`);
+    if (!r.ok) { const old = await timedFetch(`${PAGES}/hub/version.txt?t=${Date.now()}`); if (old.r.ok) ({ r, ms } = old); }
     rows.push(r.ok
       ? { name: "صفحه‌ی هاب", app: "hub", s: "ok", d: "نسخه‌ی \u2066" + fa((await r.text()).trim()) + "\u2069 · " + fa(ms) + " میلی‌ثانیه" }
       : { name: "صفحه‌ی هاب", app: "hub", s: "bad", d: "خطای " + fa(r.status) });
@@ -346,7 +348,7 @@ const GROUPS = [
     pending: ["صفحه‌ی داشبورد", "سرور + لاگین (cmd داشبورد)", "تاریخچه‌خوان", "الحاقیه ایران", "آمار درخواست‌ها"] },
   { id: "sanhab", title: "سنهاب", link: PAGES + "/sanhab/", run: checkSanhab, repo: "sanhab",
     pending: ["صفحه‌ی سنهاب", "سرور (cmd سنهاب)"] },
-  { id: "hub", title: "هاب ازکی سنتر", link: PAGES + "/hub/", run: checkHub,
+  { id: "hub", title: "هاب ازکی سنتر", link: PAGES + "/azkicenter/", run: checkHub,
     pending: ["صفحه‌ی هاب", "Supabase", "آپدیت ساعتی (n8n)", "آپدیت گزارش‌ها (n8n)", "توکن ازکی‌ایجنت", "وضعیت پنل کارشناسان (n8n)"] },
   { id: "wallboard", title: "وال برد", link: PAGES + "/wallboard/", run: checkWallboard,
     pending: ["صفحه‌ی وال برد"] },
