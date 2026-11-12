@@ -12,7 +12,7 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="google" content="notranslate">
-<title>وضعیت سیستم‌ها</title>
+<title>Pulse</title>
 <style>
 @font-face { font-family: Vazirmatn; src: url("vazirmatn.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 :root {
@@ -93,7 +93,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
 <body>
 <div class="wrap hidden" id="loginView">
   <form class="login" id="loginForm" autocomplete="on">
-    <h1>وضعیت سیستم‌ها</h1>
+    <h1>Pulse</h1>
     <div class="sub">با همون نام کاربری و رمز هاب وارد شو (فقط سرپرست‌ها).</div>
     <label for="username">نام کاربری</label>
     <input id="username" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required>
@@ -107,7 +107,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
 <div class="wrap hidden" id="appView">
   <header>
     <div>
-      <h1>وضعیت سیستم‌ها</h1>
+      <h1>Pulse</h1>
       <div class="sub" id="checkedAt">در حال بررسی…</div>
     </div>
     <button class="refresh" id="refreshBtn" type="button">بررسی دوباره</button>
@@ -450,7 +450,7 @@ async function runAll() {
   $("sumTitle").textContent = bad ? fa(bad) + " مورد مشکل داره" : warn ? fa(warn) + " مورد نیاز به توجه" : "همه‌چیز سالمه";
   const checked = all.filter(r => r.s !== "info" && r.s !== "maint").length;
   $("sumText").textContent = fa(checked - bad - warn) + " از " + fa(checked) + " مورد سالم";
-  document.title = (bad ? "🔴 " : warn ? "🟠 " : "🟢 ") + "وضعیت سیستم‌ها";
+  document.title = "Pulse";
   $("checkedAt").textContent = "آخرین بررسی: " + fa(new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }));
   $("refreshBtn").disabled = false;
   running = false;
