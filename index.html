@@ -92,7 +92,7 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
 </head>
 <body>
 <div class="wrap hidden" id="loginView">
-  <form class="login" id="loginForm" autocomplete="on">
+  <form class="login" id="loginForm" autocomplete="on" method="post" action="javascript:void(0)">
     <h1>Pulse</h1>
     <div class="sub">با همون نام کاربری و رمز هاب وارد شو (فقط سرپرست‌ها).</div>
     <label for="username">نام کاربری</label>
@@ -131,7 +131,8 @@ footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 1
   </footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+<script src="vendor/supabase.js"></script>
+<script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 <script>
 /* ================== تنظیمات ================== */
 // همه‌ی برنامه‌ها روی دامنه‌ی issueteam.ir (همون سایتی که این صفحه روشه)؛ آدرس‌های github.io هم به همین‌جا ریدایرکت می‌شن
