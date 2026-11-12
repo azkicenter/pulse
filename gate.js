@@ -1,8 +1,9 @@
 /*!
  * کلید خاموش/روشن (حالت تعمیر) برنامه‌های ازکی سنتر
  * استفاده — یک خط توی <head> هر برنامه:
- *   <script src="https://azkicenter.github.io/status/gate.js" data-app="sanhab" defer></script>
- * از صفحه‌ی وضعیت (azkicenter.github.io/status) روشن/خاموش می‌شه.
+ *   <script src="/pulse/gate.js" data-app="sanhab" defer></script>
+ * از صفحه‌ی وضعیت (issueteam.ir/pulse) روشن/خاموش می‌شه.
+ * وقتی خاموشه، به‌جای برنامه صفحه‌ی maintenance.html (کنار همین فایل) تمام‌صفحه نشون داده می‌شه.
  * - اگه Supabase جواب نده، برنامه عادی باز می‌شه (این اسکریپت هیچ‌وقت خودش باعث قطعی نمی‌شه).
  * - برای دیدن برنامه حین تعمیر (تست): آخر آدرس ?bypass=1 بذار.
  */
@@ -16,6 +17,7 @@
   var KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO";
   var RECHECK_MS = 10 * 60 * 1000;   // صفحه‌های باز هر ۱۰ دقیقه یه بار دوباره چک می‌کنن (فقط وقتی جلوی چشمه)
   var BYPASS_KEY = "azki-maint-bypass";
+  var PAGE_URL = new URL("maintenance.html?app=" + encodeURIComponent(APP), me.src).href;   // صفحه‌ی «در حال تعمیر» با اسم همین برنامه
 
   // ?bypass=1 → برای همین تب، حالت تعمیر نادیده گرفته می‌شه (برای تست خودت)
   try {
@@ -27,20 +29,15 @@
 
   function show() {
     if (overlay) return;
-    overlay = document.createElement("div");
+    overlay = document.createElement("iframe");
+    overlay.src = PAGE_URL;
+    overlay.title = "Under maintenance";
     overlay.setAttribute("role", "alertdialog");
     overlay.setAttribute("aria-live", "assertive");
     overlay.style.cssText =
-      "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;" +
-      "padding:24px;background:#0F1B33;color:#EAF0FB;font-family:Vazirmatn,Tahoma,system-ui,sans-serif;" +
-      "direction:rtl;text-align:center;";
-    overlay.innerHTML =
-      '<div style="max-width:420px">' +
-      '<div style="font-size:56px;line-height:1;margin-bottom:18px">🛠️</div>' +
-      '<div style="font-size:22px;font-weight:800;margin-bottom:10px">در حال به‌روزرسانی</div>' +
-      '<div style="font-size:15px;line-height:1.9;opacity:.85">این بخش موقتاً برای تعمیر و به‌روزرسانی در دسترس نیست.<br>به‌زودی برمی‌گرده؛ چند دقیقه‌ی دیگه دوباره سر بزن.</div>' +
-      '<div style="font-size:12px;opacity:.5;margin-top:22px;direction:ltr">UNDER MAINTENANCE</div>' +
-      "</div>";
+      "position:fixed;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;" +
+      "z-index:2147483647;background:#fff;display:block;";
+    overlay.addEventListener("load", function () { try { overlay.focus(); } catch (e) {} });
     (document.body || document.documentElement).appendChild(overlay);
     document.documentElement.style.overflow = "hidden";
   }

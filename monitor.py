@@ -196,7 +196,7 @@ def send_mail(subject, lines):
     to = [a.strip() for a in os.environ["ALERT_TO"].split(",") if a.strip()]
     html = ('<div dir="rtl" style="font-family:Tahoma,sans-serif;font-size:14px;line-height:1.8">'
             + "<br>".join(lines)
-            + f'<br><br><a href="{PAGES}/status/">باز کردن صفحه‌ی وضعیت</a></div>')
+            + f'<br><br><a href="{PAGES}/pulse/">باز کردن صفحه‌ی وضعیت</a></div>')
     msg = MIMEText(html, "html", "utf-8")
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = user
