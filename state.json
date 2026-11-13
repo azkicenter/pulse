@@ -12,7 +12,7 @@
   "down": false
  },
  "dash_server": {
-  "fails": 1,
+  "fails": 0,
   "down": false
  },
  "tarikhche": {
@@ -28,7 +28,7 @@
   "down": false
  },
  "sanhab_server": {
-  "fails": 1,
+  "fails": 0,
   "down": false
  },
  "supabase": {
@@ -36,7 +36,7 @@
   "down": false
  },
  "n8n_ops": {
-  "fails": 1,
+  "fails": 0,
   "down": false
  },
  "page_wallboard": {
@@ -44,7 +44,7 @@
   "down": false
  },
  "agent_token": {
-  "fails": 1,
+  "fails": 0,
   "down": false
  }
 }
